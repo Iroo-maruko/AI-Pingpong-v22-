@@ -1,0 +1,65 @@
+{
+    "PingPongAgent": {
+        "checkpoints": [
+            {
+                "steps": 3499937,
+                "file_path": "results/ai_pingpong/PingPongAgent/PingPongAgent-3499937.onnx",
+                "reward": -10.878466539084911,
+                "creation_time": 1748235460.826366,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong/PingPongAgent/PingPongAgent-3499937.pt"
+                ]
+            },
+            {
+                "steps": 3999981,
+                "file_path": "results/ai_pingpong/PingPongAgent/PingPongAgent-3999981.onnx",
+                "reward": -11.323710397249314,
+                "creation_time": 1748237295.715245,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong/PingPongAgent/PingPongAgent-3999981.pt"
+                ]
+            },
+            {
+                "steps": 4499974,
+                "file_path": "results/ai_pingpong/PingPongAgent/PingPongAgent-4499974.onnx",
+                "reward": -11.611261953910192,
+                "creation_time": 1748239196.1940339,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong/PingPongAgent/PingPongAgent-4499974.pt"
+                ]
+            },
+            {
+                "steps": 4999971,
+                "file_path": "results/ai_pingpong/PingPongAgent/PingPongAgent-4999971.onnx",
+                "reward": -11.859962836224982,
+                "creation_time": 1748241329.060225,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong/PingPongAgent/PingPongAgent-4999971.pt"
+                ]
+            },
+            {
+                "steps": 5000014,
+                "file_path": "results/ai_pingpong/PingPongAgent/PingPongAgent-5000014.onnx",
+                "reward": -11.80207155204155,
+                "creation_time": 1748241329.090986,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong/PingPongAgent/PingPongAgent-5000014.pt"
+                ]
+            }
+        ],
+        "final_checkpoint": {
+            "steps": 5000014,
+            "file_path": "results/ai_pingpong/PingPongAgent.onnx",
+            "reward": -11.80207155204155,
+            "creation_time": 1748241329.090986,
+            "auxillary_file_paths": [
+                "results/ai_pingpong/PingPongAgent/PingPongAgent-5000014.pt"
+            ]
+        }
+    },
+    "metadata": {
+        "stats_format_version": "0.3.0",
+        "mlagents_version": "0.30.0",
+        "torch_version": "1.12.0"
+    }
+}

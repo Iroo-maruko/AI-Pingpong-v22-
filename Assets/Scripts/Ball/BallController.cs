@@ -10,16 +10,17 @@ public class BallController : MonoBehaviour
     private string lastBounceTable = "None";
     private bool isResetting = false;
     private bool isServe = true;
-    private bool hasOutEventTriggered = false;
-    private bool hasServedBounceOccurred = false;
+    private bool aiHasHit = false;
+    private bool pointProcessed = false; // ✅ 중복 방지 추가
 
     [Header("References")]
     public AIAgent aiAgent;
 
     [Header("Launch Settings")]
     public Transform resetPoint;
-    public float initialForce = 26f;
-    public float launchAngleRange = 20f;
+    public float initialForce = 19f;
+    public float launchAngleRange = 30f;
+    public float upwardLaunchOffset = 0.3f;
 
     [Header("Reset Conditions")]
     public float stopThreshold = 5f;
@@ -31,66 +32,75 @@ public class BallController : MonoBehaviour
 
     private float slowTimer = 0f;
 
-    private void Start()
+    private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+
         if (resetPoint != null)
             transform.position = resetPoint.position;
 
+        rb.velocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.Sleep();
+    }
+
+    private void Start()
+    {
+        StartCoroutine(DelayedLaunch());
+    }
+
+    private IEnumerator DelayedLaunch()
+    {
+        yield return new WaitForFixedUpdate();
+        rb.WakeUp();
+        yield return new WaitForSeconds(0.15f);
         LaunchBall();
     }
 
     private void Update()
     {
-        if (isResetting) return;
-
-        Vector3 pos = transform.position;
-
-        bool outOfBounds = pos.y < outOfBoundsY ||
-                           pos.y > maxAllowedHeight ||
-                           Mathf.Abs(pos.x) > outOfBoundsX ||
-                           Mathf.Abs(pos.z) > outOfBoundsZ;
-
-        if (!hasOutEventTriggered && outOfBounds)
-        {
-            hasOutEventTriggered = true;
-            Debug.Log($"⛔️ Ball went out of bounds. (x: {pos.x}, y: {pos.y}, z: {pos.z})");
-            GameManager.Instance.OnBallOutOfBounds(serveBy, lastBounceTable);
-            HandleRewards();
-            return;
-        }
+        if (isResetting || pointProcessed) return;
 
         float speed = rb.velocity.magnitude;
-        if (speed < stopThreshold && !isServe && !hasOutEventTriggered)
+        if (speed < stopThreshold && !isServe)
         {
             slowTimer += Time.deltaTime;
-            if (slowTimer >= stopCheckDuration)
+            if (slowTimer >= stopCheckDuration && !pointProcessed)
             {
-                hasOutEventTriggered = true;
-                Debug.Log("⚠️ Ball is too slow. Resetting...");
-                GameManager.Instance.OnBallOutOfBounds(serveBy, lastBounceTable);
-                HandleRewards();
-                return;
+                pointProcessed = true;
+                GameManager.Instance.OnBallOutOfBounds(lastBounceTable);
             }
         }
         else
         {
             slowTimer = 0f;
         }
+
+        Vector3 pos = transform.position;
+        if (!pointProcessed && (pos.y < outOfBoundsY || pos.y > maxAllowedHeight ||
+            Mathf.Abs(pos.x) > outOfBoundsX || Mathf.Abs(pos.z) > outOfBoundsZ))
+        {
+            pointProcessed = true;
+            GameManager.Instance.OnBallOutOfBounds(lastBounceTable);
+        }
     }
 
     public void LaunchBall()
     {
         isServe = true;
-        hasOutEventTriggered = false;
-        hasServedBounceOccurred = false;
+        aiHasHit = false;
+        pointProcessed = false; // ✅ 초기화
+        lastHitter = "None";
+        lastBounceTable = "None";
 
         bool toLeft = Random.value < 0.5f;
         serveBy = toLeft ? "Player" : "AI";
 
         float angle = Random.Range(-launchAngleRange, launchAngleRange);
-        Vector3 dir = Quaternion.Euler(0, angle, 0) * (toLeft ? Vector3.right : Vector3.left);
-        rb.velocity = dir.normalized * initialForce;
+        Vector3 horizontalDir = Quaternion.Euler(0, angle, 0) * (toLeft ? Vector3.right : Vector3.left);
+        Vector3 finalDir = (horizontalDir + Vector3.up * upwardLaunchOffset).normalized;
+
+        rb.velocity = finalDir * initialForce;
     }
 
     public void ResetBall(Vector3 position)
@@ -110,16 +120,16 @@ public class BallController : MonoBehaviour
         transform.position = position;
         rb.WakeUp();
 
-        yield return new WaitForSeconds(0.1f);
-
+        yield return new WaitForSeconds(0.15f);
         LaunchBall();
+
         slowTimer = 0f;
         isResetting = false;
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (isResetting) return;
+        if (isResetting || pointProcessed) return;
 
         string tag = collision.gameObject.tag;
 
@@ -132,59 +142,27 @@ public class BallController : MonoBehaviour
         else if (tag == "PlayerTable" || tag == "AITable")
         {
             lastBounceTable = tag;
-
-            if (isServe && !hasServedBounceOccurred)
-            {
-                Debug.Log($"✔️ First serve bounce ({tag})");
-                GameManager.Instance.OnBallBounce(true);
-                isServe = false;
-                hasServedBounceOccurred = true;
-            }
-            else
-            {
-                // 🔥 서브 이후 자신의 테이블에 바운스되면 실점
-                if (!isServe &&
-                    ((lastHitter == "Player" && tag == "PlayerTable") ||
-                     (lastHitter == "AI" && tag == "AITable")))
-                {
-                    Debug.Log($"❌ {lastHitter} hit but landed on own table → point lost");
-                    GameManager.Instance.OnBallOutOfBounds(serveBy, lastBounceTable);
-                    HandleRewards();
-                }
-                else
-                {
-                    Debug.Log($"✅ {lastHitter} successfully bounced on {tag}");
-                    GameManager.Instance.OnBallBounce(false);
-                }
-            }
+            GameManager.Instance.OnBallBounce(tag, isServe);
+            isServe = false;
         }
-        else if (tag == "Net")
+        else if (tag == "Ground")
         {
-            Debug.Log("🪢 Ball hit the net.");
-            GameManager.Instance.OnBallHitNet();
-            HandleRewards();
+            pointProcessed = true;
+            GameManager.Instance.OnBallOutOfBounds(lastBounceTable);
         }
-        else if (tag == "Ground" && !isServe && !hasOutEventTriggered)
-        {
-            hasOutEventTriggered = true;
-            Debug.Log("⛔️ Ball hit the ground.");
-            GameManager.Instance.OnBallOutOfBounds(serveBy, lastBounceTable);
-            HandleRewards();
-        }
-    }
-
-    private void HandleRewards()
-    {
-        aiAgent?.MissedBallPenalty();
     }
 
     public void RegisterHit(string hitter)
     {
         lastHitter = hitter;
-        Debug.Log($"[BallController] lastHitBy set to: {lastHitter}");
-        GameManager.Instance?.ResetBounceCount();  // 💡 GameManager.cs에 이 메서드 추가 필요
+        GameManager.Instance?.ResetBounceCount();
+        isServe = false;
+
+        if (hitter == "AI")
+            aiHasHit = true;
     }
 
+    public void ForceEndServe() => isServe = false;
     public string GetLastHitter() => lastHitter;
     public string GetLastBounceTable() => lastBounceTable;
     public string GetServeBy() => serveBy;
@@ -192,9 +170,6 @@ public class BallController : MonoBehaviour
     public Vector3 GetVelocity() => rb.velocity;
     public bool IsResetting() => isResetting;
     public bool IsServe() => isServe;
-    public void ForceEndServe()
-    {
-        isServe = false;
-        hasServedBounceOccurred = true;
-    }
+    public bool AIHasHit() => aiHasHit;
+    public void SetAIHasHit(bool value) => aiHasHit = value;
 }

@@ -8,11 +8,8 @@ public class AIAgent : Agent
 {
     public Transform ball;
     public Rigidbody ballRb;
-    public Transform targetCourtPosition;
 
     public float moveSpeed = 40f;
-    public float hitForce = 15f;
-    public float upwardForce = 8f;
     public float hitDistance = 2.5f;
 
     private Rigidbody rb;
@@ -25,10 +22,12 @@ public class AIAgent : Agent
     private float episodeTimer = 0f;
     public float maxEpisodeTime = 10f;
 
+    public float[] currentHitAction = new float[4]; // [0]: Hit flag, [1]: Power, [2]: dirX, [3]: dirZ
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
-        rb.constraints = RigidbodyConstraints.None;
+        rb.constraints = RigidbodyConstraints.FreezeRotation;
     }
 
     void Update()
@@ -63,13 +62,12 @@ public class AIAgent : Agent
 
     public override void CollectObservations(VectorSensor sensor)
     {
-        if (ball == null || ballRb == null || targetCourtPosition == null) return;
+        if (ball == null || ballRb == null) return;
 
-        sensor.AddObservation(transform.localPosition);                                 // 3
-        sensor.AddObservation(ball.localPosition);                                     // 3
-        sensor.AddObservation(ballRb.velocity);                                  // 3
-        sensor.AddObservation(targetCourtPosition.localPosition);                      // 3
-        sensor.AddObservation((ball.position - transform.position).normalized);        // 3
+        sensor.AddObservation(transform.localPosition);                          // 3
+        sensor.AddObservation(ball.localPosition);                              // 3
+        sensor.AddObservation(ballRb.velocity);                                 // 3
+        sensor.AddObservation((ball.position - transform.position).normalized); // 3
         sensor.AddObservation(Vector3.Dot((ball.position - transform.position).normalized, transform.forward)); // 1
     }
 
@@ -77,7 +75,6 @@ public class AIAgent : Agent
     {
         var act = actions.ContinuousActions;
 
-        // 이동 처리
         Vector3 move = new Vector3(act[0], act[1], act[2]) * moveSpeed * Time.deltaTime;
         Vector3 newPosition = transform.localPosition + move;
         newPosition = new Vector3(
@@ -87,42 +84,13 @@ public class AIAgent : Agent
         );
         transform.localPosition = newPosition;
 
-        // 회전 처리
-        Vector3 rot = new Vector3(act[3], act[4], act[5]);
-        transform.Rotate(rot * 100f * Time.deltaTime);
-
-        // 거리 기반 보상
         float distanceToBall = Vector3.Distance(transform.position, ball.position);
         AddReward(-0.001f * distanceToBall);
 
-        // 타격 자동화
-        if (distanceToBall < hitDistance && Time.time - lastHitTime > hitCooldown)
-        {
-            float hitPower = Mathf.Clamp01(act[6] + 0.3f);
-
-            Vector3 direction = (targetCourtPosition.position - ball.position).normalized;
-            direction.y = Mathf.Clamp(direction.y, 0.1f, 0.35f);
-            float alignment = Vector3.Dot(direction, transform.forward);
-
-            ballRb.velocity = Vector3.zero;
-            ballRb.angularVelocity = Vector3.zero;
-
-            Vector3 hitForceVec = (direction + Vector3.up * upwardForce * 0.3f) * hitPower * hitForce;
-            ballRb.AddForce(hitForceVec, ForceMode.Impulse);
-
-            AddReward(+1.0f); // 기본 명중 보상
-
-            if (alignment > 0)
-                AddReward(0.3f * alignment);
-            else
-                AddReward(-0.3f * Mathf.Abs(alignment));
-
-            Vector3 predictedLanding = ball.position + ballRb.velocity.normalized * 1.5f;
-            float targetDistance = Vector3.Distance(predictedLanding, targetCourtPosition.position);
-            AddReward(Mathf.Clamp01(1f - targetDistance / 10f)); // 착지 위치 보상
-
-            lastHitTime = Time.time;
-        }
+        currentHitAction[0] = act[3];                  // Hit attempt
+        currentHitAction[1] = Mathf.Clamp01(act[4]);   // Power
+        currentHitAction[2] = act[5];                  // dirX
+        currentHitAction[3] = act[6];                  // dirZ
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
@@ -131,14 +99,18 @@ public class AIAgent : Agent
         a[0] = Input.GetAxis("Horizontal");
         a[1] = 0f;
         a[2] = Input.GetAxis("Vertical");
-        a[3] = 0f; a[4] = 0f; a[5] = 0f;
-        a[6] = 1f;
+
+        a[3] = 1f;
+        a[4] = 1f;
+        a[5] = 1f;
+        a[6] = -1f;
     }
 
     public void MissedBallPenalty()
     {
         if (!isActiveAndEnabled) return;
         AddReward(-1.5f);
+        Academy.Instance.StatsRecorder.Add("Game/MissedPoints", 1);
         EndEpisode();
     }
 
@@ -146,6 +118,12 @@ public class AIAgent : Agent
     {
         if (!isActiveAndEnabled) return;
         AddReward(+2.0f);
+        Academy.Instance.StatsRecorder.Add("Game/SuccessfulPoints", 1);
         EndEpisode();
+    }
+
+    public void RecordMatchResult(bool win)
+    {
+        Academy.Instance.StatsRecorder.Add("Game/SetWinRate", win ? 1f : 0f);
     }
 }

@@ -8,7 +8,7 @@ public class PlayerPaddleHit : MonoBehaviour
     public Transform aiCourtCenter;
 
     [Header("Hit Settings")]
-    public float hitDistance = 8f;
+    public float hitDistance = 12f;
     public float baseHitForce = 10f;
     public float baseUpwardForce = 6f;
     public float hitCooldown = 0.5f;
@@ -18,6 +18,12 @@ public class PlayerPaddleHit : MonoBehaviour
     public float maxAngleAdjustment = 0.4f;
     public float minForceScale = 0.75f;
     public float spinTorque = 2f;
+    public float misHitChance = 0.3f;
+    public float misHitAngle = 2f;
+
+    [Header("Force Clamping")]
+    public float minUpwardY = 2.5f;         // 최소 y 상승값
+    public float minTotalForce = 10f;       // 전체 최소 힘 크기
 
     private Collider paddleCollider;
     private Collider ballCollider;
@@ -39,8 +45,6 @@ public class PlayerPaddleHit : MonoBehaviour
 
         if (canHit)
         {
-            Debug.Log("[DEBUG] ✅ HIT TRIGGERED");
-
             lastHitTime = Time.time;
 
             if (paddleCollider && ballCollider)
@@ -51,10 +55,7 @@ public class PlayerPaddleHit : MonoBehaviour
             {
                 ballController.RegisterHit("Player");
                 if (ballController.IsServe())
-                {
                     ballController.ForceEndServe();
-                    Debug.Log("🟢 [PlayerPaddleHit] 서브 상태 종료 → 랠리 시작");
-                }
             }
 
             bool isRally = ballRb.velocity.z < 0f;
@@ -66,14 +67,19 @@ public class PlayerPaddleHit : MonoBehaviour
             direction.y = isRally ? 0.75f : 0.6f;
             direction = direction.normalized;
 
+            if (Random.value < misHitChance)
+            {
+                float misX = Random.Range(-misHitAngle, misHitAngle);
+                float misZ = Random.Range(-misHitAngle, misHitAngle);
+                direction += new Vector3(misX, 0f, misZ).normalized * 0.5f;
+                Debug.LogWarning($"❌ [MisHit] Player hit misdirected: XZ offset=({misX:F2}, {misZ:F2})");
+            }
+
             ballRb.velocity = Vector3.zero;
             ballRb.angularVelocity = Vector3.zero;
 
             if (ball.position.y < 0.2f)
-            {
                 ball.position += Vector3.up * 0.1f;
-                Debug.Log("[DEBUG] Ball raised slightly to avoid ground drag");
-            }
 
             float forceScale = Mathf.Clamp01((hitDistance - distance) / hitDistance);
             float dynamicHitForce = baseHitForce * (minForceScale + forceScale * (1f - minForceScale));
@@ -81,12 +87,13 @@ public class PlayerPaddleHit : MonoBehaviour
             float finalUpwardForce = isRally ? baseUpwardForce + 1.5f : baseUpwardForce;
 
             Vector3 finalForce = direction * finalHitForce;
-            finalForce.y += finalUpwardForce;
+            finalForce.y = Mathf.Max(finalForce.y + finalUpwardForce, minUpwardY);
+
+            if (finalForce.magnitude < minTotalForce)
+                finalForce = finalForce.normalized * minTotalForce;
 
             ballRb.AddForce(finalForce, ForceMode.Impulse);
             ballRb.AddTorque(Vector3.right * Random.Range(-spinTorque, spinTorque), ForceMode.Impulse);
-
-            Debug.Log($"[Hit] Rally={isRally}, Force={finalForce}, BallPos={ball.position}");
 
             Invoke(nameof(ResetCollision), collisionDisableTime);
         }
