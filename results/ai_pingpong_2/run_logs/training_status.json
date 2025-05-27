@@ -2,22 +2,40 @@
     "PingPongAgent": {
         "checkpoints": [
             {
-                "steps": 53116,
-                "file_path": "results/ai_pingpong_2/PingPongAgent/PingPongAgent-53116.onnx",
-                "reward": -18.113524398633412,
-                "creation_time": 1748313029.283975,
+                "steps": 4499984,
+                "file_path": "results/ai_pingpong_2/PingPongAgent/PingPongAgent-4499984.onnx",
+                "reward": -14.343229049357815,
+                "creation_time": 1748338459.481675,
                 "auxillary_file_paths": [
-                    "results/ai_pingpong_2/PingPongAgent/PingPongAgent-53116.pt"
+                    "results/ai_pingpong_2/PingPongAgent/PingPongAgent-4499984.pt"
+                ]
+            },
+            {
+                "steps": 4999934,
+                "file_path": "results/ai_pingpong_2/PingPongAgent/PingPongAgent-4999934.onnx",
+                "reward": -14.136193085939457,
+                "creation_time": 1748340027.970026,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong_2/PingPongAgent/PingPongAgent-4999934.pt"
+                ]
+            },
+            {
+                "steps": 5000001,
+                "file_path": "results/ai_pingpong_2/PingPongAgent/PingPongAgent-5000001.onnx",
+                "reward": -14.136980071006764,
+                "creation_time": 1748340028.004222,
+                "auxillary_file_paths": [
+                    "results/ai_pingpong_2/PingPongAgent/PingPongAgent-5000001.pt"
                 ]
             }
         ],
         "final_checkpoint": {
-            "steps": 53116,
+            "steps": 5000001,
             "file_path": "results/ai_pingpong_2/PingPongAgent.onnx",
-            "reward": -18.113524398633412,
-            "creation_time": 1748313029.283975,
+            "reward": -14.136980071006764,
+            "creation_time": 1748340028.004222,
             "auxillary_file_paths": [
-                "results/ai_pingpong_2/PingPongAgent/PingPongAgent-53116.pt"
+                "results/ai_pingpong_2/PingPongAgent/PingPongAgent-5000001.pt"
             ]
         }
     },

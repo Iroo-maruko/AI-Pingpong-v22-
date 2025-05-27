@@ -35,32 +35,14 @@ public class AIPaddleHit : MonoBehaviour
         }
 
         // ✅ 중복 타격 방지
-        if (ballController.AIHasHit())
-        {
-            // Debug.Log("⚠️ AI already hit this rally.");
-            return;
-        }
+        if (ballController.AIHasHit()) return;
 
         float distance = Vector3.Distance(transform.position, ball.position);
-        if (distance > hitDistance)
-        {
-            // Debug.Log($"⛔ Too far to hit: Distance = {distance:F2} (Threshold = {hitDistance})");
-            return;
-        }
+        if (distance > hitDistance) return;
 
         float timeSinceLastHit = Time.time - lastHitTime;
         bool wantToHit = agent.currentHitAction[0] > 0.5f;
-        if (!wantToHit)
-        {
-            // Debug.Log("⛔ Agent does not want to hit (hitAction[0] too low)");
-            return;
-        }
-
-        if (timeSinceLastHit < hitCooldown)
-        {
-            // Debug.Log($"⏳ Cooldown not ready: {timeSinceLastHit:F2}s < {hitCooldown}s");
-            return;
-        }
+        if (!wantToHit || timeSinceLastHit < hitCooldown) return;
 
         lastHitTime = Time.time;
 
@@ -75,6 +57,8 @@ public class AIPaddleHit : MonoBehaviour
         float forceScale = Mathf.Clamp01((hitDistance - distance) / hitDistance);
         float dynamicHitForce = baseHitForce * (minForceScale + forceScale * (1f - minForceScale));
         float hitPower = Mathf.Clamp01(agent.currentHitAction[1]);
+        hitPower = Mathf.Lerp(0.5f, 1.5f, hitPower); // Power range: 0.5 ~ 1.5
+
         Vector3 finalForce = direction * hitPower * dynamicHitForce;
         finalForce.y += baseUpwardForce;
 

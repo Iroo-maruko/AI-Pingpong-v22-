@@ -11,7 +11,8 @@ public class BallController : MonoBehaviour
     private bool isResetting = false;
     private bool isServe = true;
     private bool aiHasHit = false;
-    private bool pointProcessed = false; // ✅ 중복 방지 추가
+    private bool pointProcessed = false;
+    private bool hasLaunched = false; // ✅ 중복 방지 플래그
 
     [Header("References")]
     public AIAgent aiAgent;
@@ -46,15 +47,8 @@ public class BallController : MonoBehaviour
 
     private void Start()
     {
-        StartCoroutine(DelayedLaunch());
-    }
-
-    private IEnumerator DelayedLaunch()
-    {
-        yield return new WaitForFixedUpdate();
-        rb.WakeUp();
-        yield return new WaitForSeconds(0.15f);
-        LaunchBall();
+        // 제거: Start에서의 LaunchBall() → 중복 가능성 있음
+        // StartCoroutine(DelayedLaunch());
     }
 
     private void Update()
@@ -68,7 +62,7 @@ public class BallController : MonoBehaviour
             if (slowTimer >= stopCheckDuration && !pointProcessed)
             {
                 pointProcessed = true;
-                GameManager.Instance.OnBallOutOfBounds(lastBounceTable);
+                StartCoroutine(HandlePointOut(lastBounceTable));
             }
         }
         else
@@ -77,19 +71,32 @@ public class BallController : MonoBehaviour
         }
 
         Vector3 pos = transform.position;
-        if (!pointProcessed && (pos.y < outOfBoundsY || pos.y > maxAllowedHeight ||
-            Mathf.Abs(pos.x) > outOfBoundsX || Mathf.Abs(pos.z) > outOfBoundsZ))
+        if (!pointProcessed && (
+            pos.y < outOfBoundsY ||
+            pos.y > maxAllowedHeight ||
+            Mathf.Abs(pos.x) > outOfBoundsX ||
+            Mathf.Abs(pos.z) > outOfBoundsZ))
         {
             pointProcessed = true;
-            GameManager.Instance.OnBallOutOfBounds(lastBounceTable);
+            StartCoroutine(HandlePointOut(lastBounceTable));
         }
+    }
+
+    private IEnumerator HandlePointOut(string lastBounce)
+    {
+        GameManager.Instance.OnBallOutOfBounds(lastBounce);
+        yield return new WaitForSeconds(0.5f); // ✅ 점수 표시 대기
+        ResetBall(GameManager.Instance.centerPoint.position);
     }
 
     public void LaunchBall()
     {
+        if (hasLaunched) return; // ✅ 중복 방지
+        hasLaunched = true;
+
         isServe = true;
         aiHasHit = false;
-        pointProcessed = false; // ✅ 초기화
+        pointProcessed = false;
         lastHitter = "None";
         lastBounceTable = "None";
 
@@ -116,11 +123,11 @@ public class BallController : MonoBehaviour
         rb.Sleep();
 
         yield return new WaitForFixedUpdate();
-
         transform.position = position;
         rb.WakeUp();
 
         yield return new WaitForSeconds(0.15f);
+        hasLaunched = false; // ✅ 다음 발사 허용
         LaunchBall();
 
         slowTimer = 0f;
@@ -148,7 +155,7 @@ public class BallController : MonoBehaviour
         else if (tag == "Ground")
         {
             pointProcessed = true;
-            GameManager.Instance.OnBallOutOfBounds(lastBounceTable);
+            StartCoroutine(HandlePointOut(lastBounceTable));
         }
     }
 
@@ -158,8 +165,7 @@ public class BallController : MonoBehaviour
         GameManager.Instance?.ResetBounceCount();
         isServe = false;
 
-        if (hitter == "AI")
-            aiHasHit = true;
+        if (hitter == "AI") aiHasHit = true;
     }
 
     public void ForceEndServe() => isServe = false;

@@ -21,7 +21,11 @@ public class GameManager : MonoBehaviour
     private int bounceCount = 0;
     private bool isPointScored = false;
     private int totalGames = 0;
+
     private List<float> aiWinRates = new List<float>();
+    private List<int> aiScores = new List<int>();
+    private List<int> playerScores = new List<int>();
+
     private string previousBounceTable = "None";
 
     private void Awake()
@@ -41,6 +45,13 @@ public class GameManager : MonoBehaviour
 
         string lastHitter = ball.GetLastHitter();
 
+        // ✅ AI가 공을 넘겨서 PlayerTable에 바운스한 경우 보상
+        if (lastHitter == "AI" && tableTag == "PlayerTable")
+        {
+            aiPaddle.GetComponent<AIAgent>()?.AddReward(+0.3f); // 네트 넘기기 보상
+        }
+
+        // 🛑 자기 코트에 바운스 → 실점
         if (!isServe &&
             ((lastHitter == "Player" && tableTag == "PlayerTable") ||
              (lastHitter == "AI" && tableTag == "AITable")))
@@ -50,6 +61,7 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // 🛑 같은 테이블에 두 번 바운스 → 실점
         if (!isServe && previousBounceTable == tableTag)
         {
             isPointScored = true;
@@ -68,7 +80,9 @@ public class GameManager : MonoBehaviour
 
         string lastHitter = ball.GetLastHitter();
         if (lastHitter == "None")
+        {
             lastHitter = ball.GetServeBy();
+        }
 
         if ((lastHitter == "Player" && lastBounceTable == "PlayerTable") ||
             (lastHitter == "AI" && lastBounceTable == "AITable"))
@@ -86,12 +100,12 @@ public class GameManager : MonoBehaviour
         if (winner == "Player")
         {
             playerScore++;
-            aiPaddle.GetComponent<AIAgent>()?.MissedBallPenalty();
+            Debug.Log(fault ? "✅ Player scores (AI fault)" : "✅ Player scores");
         }
         else
         {
             aiScore++;
-            aiPaddle.GetComponent<AIAgent>()?.SuccessfulPoint();
+            Debug.Log(fault ? "✅ AI scores (Player fault)" : "✅ AI scores");
         }
 
         Debug.Log($"🏓 Score: Player {playerScore} / AI {aiScore}");
@@ -106,37 +120,55 @@ public class GameManager : MonoBehaviour
         if (playerScore >= pointsToWin || aiScore >= pointsToWin)
         {
             totalGames++;
+
             float winRate = (float)aiScore / (playerScore + aiScore);
             aiWinRates.Add(winRate);
+            aiScores.Add(aiScore);
+            playerScores.Add(playerScore);
+
+            Debug.Log($"📊 [Set End] Game {totalGames}, AI Score: {aiScore}, Player Score: {playerScore}, Win Rate: {winRate:F2}");
+
             SaveWinRateData();
-            playerScore = 0; aiScore = 0;
+
+            playerScore = 0;
+            aiScore = 0;
         }
-    }
-
-    public void ResetAfterPoint()
-    {
-        bounceCount = 0;
-        isPointScored = false;
-        previousBounceTable = "None";
-
-        string hitter = ball.GetLastHitter();
-        string result = hitter == "Player" ? "PlayerScored" : "AIScored";
-
-        logger.LogPoint(totalGames, hitter, ball.GetPosition(), ball.GetVelocity().magnitude,
-            aiPaddle.position.z, playerPaddle.position.z, result);
-
-        ball.ResetBall(centerPoint.position);
     }
 
     private void SaveWinRateData()
     {
-        string path = Path.Combine(Application.dataPath, "AIWinRate.csv");
-        using (StreamWriter writer = new StreamWriter(path))
+        string path = Path.Combine(Application.persistentDataPath, "AIWinRate.csv");
+        bool fileExists = File.Exists(path);
+
+        using (StreamWriter writer = new StreamWriter(path, append: true))
         {
-            writer.WriteLine("Game,AIWinRate");
-            for (int i = 0; i < aiWinRates.Count; i++)
-                writer.WriteLine($"{i + 1},{aiWinRates[i]}");
+            if (!fileExists)
+                writer.WriteLine("Game,AI_Score,Player_Score,AI_WinRate");
+
+            int index = aiWinRates.Count - 1;
+            int ai = aiScores[index];
+            int player = playerScores[index];
+            float rate = aiWinRates[index];
+
+            writer.WriteLine($"{totalGames},{ai},{player},{rate:F3}");
         }
+
+        Debug.Log($"📁 WinRate appended at: {path}");
+    }
+
+    private void ResetAfterPoint()
+    {
+        string hitter = ball.GetLastHitter();
+        string result = hitter == "Player" ? "PlayerScored" : "AIScored";
+
+        logger?.LogPoint(totalGames, hitter, ball.GetPosition(), ball.GetVelocity().magnitude,
+            aiPaddle.position.z, playerPaddle.position.z, result);
+
+        bounceCount = 0;
+        previousBounceTable = "None";
+        isPointScored = false;
+
+        ball.ResetBall(centerPoint.position);
     }
 
     public void ResetBounceCount()

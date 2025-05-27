@@ -87,10 +87,10 @@ public class AIAgent : Agent
         float distanceToBall = Vector3.Distance(transform.position, ball.position);
         AddReward(-0.001f * distanceToBall);
 
-        currentHitAction[0] = act[3];                  // Hit attempt
-        currentHitAction[1] = Mathf.Clamp01(act[4]);   // Power
-        currentHitAction[2] = act[5];                  // dirX
-        currentHitAction[3] = act[6];                  // dirZ
+        currentHitAction[0] = act[3];
+        currentHitAction[1] = Mathf.Clamp01(act[4]);
+        currentHitAction[2] = act[5];
+        currentHitAction[3] = act[6];
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
@@ -106,24 +106,4 @@ public class AIAgent : Agent
         a[6] = -1f;
     }
 
-    public void MissedBallPenalty()
-    {
-        if (!isActiveAndEnabled) return;
-        AddReward(-1.5f);
-        Academy.Instance.StatsRecorder.Add("Game/MissedPoints", 1);
-        EndEpisode();
-    }
-
-    public void SuccessfulPoint()
-    {
-        if (!isActiveAndEnabled) return;
-        AddReward(+2.0f);
-        Academy.Instance.StatsRecorder.Add("Game/SuccessfulPoints", 1);
-        EndEpisode();
-    }
-
-    public void RecordMatchResult(bool win)
-    {
-        Academy.Instance.StatsRecorder.Add("Game/SetWinRate", win ? 1f : 0f);
-    }
 }
