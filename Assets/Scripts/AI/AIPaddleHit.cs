@@ -34,7 +34,6 @@ public class AIPaddleHit : MonoBehaviour
             return;
         }
 
-        // ✅ 중복 타격 방지
         if (ballController.AIHasHit()) return;
 
         float distance = Vector3.Distance(transform.position, ball.position);
@@ -46,7 +45,7 @@ public class AIPaddleHit : MonoBehaviour
 
         lastHitTime = Time.time;
 
-        Vector3 direction = new Vector3(agent.currentHitAction[2], 0.6f, agent.currentHitAction[3]);
+        Vector3 direction = new Vector3(agent.currentHitAction[2], 0.6f, agent.currentHitAction[3]*0.3f);
         if (direction.sqrMagnitude < 0.01f)
         {
             direction = transform.forward;
@@ -57,7 +56,7 @@ public class AIPaddleHit : MonoBehaviour
         float forceScale = Mathf.Clamp01((hitDistance - distance) / hitDistance);
         float dynamicHitForce = baseHitForce * (minForceScale + forceScale * (1f - minForceScale));
         float hitPower = Mathf.Clamp01(agent.currentHitAction[1]);
-        hitPower = Mathf.Lerp(0.5f, 1.5f, hitPower); // Power range: 0.5 ~ 1.5
+        hitPower = Mathf.Lerp(0.5f, 1.2f, hitPower); // Power range: 0.5 ~ 1.5
 
         Vector3 finalForce = direction * hitPower * dynamicHitForce;
         finalForce.y += baseUpwardForce;
@@ -81,5 +80,17 @@ public class AIPaddleHit : MonoBehaviour
 
         ballRb.AddForce(finalForce, ForceMode.Impulse);
         ballRb.AddTorque(Vector3.right * Random.Range(-spinTorque, spinTorque), ForceMode.Impulse);
+
+        // ✅ 보상 부여
+        agent.AddReward(+0.1f); // 공을 친 것에 대한 기본 보상
+
+        if (direction.x > 0)
+        {
+            agent.AddReward(+0.2f); // 올바른 방향으로 침 (+x)
+        }
+        else
+        {
+            agent.AddReward(-0.2f); // 반대 방향으로 침 (-x)
+        }
     }
 }
