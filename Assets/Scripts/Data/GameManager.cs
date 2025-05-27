@@ -57,16 +57,23 @@ public class GameManager : MonoBehaviour
              (lastHitter == "AI" && tableTag == "AITable")))
         {
             isPointScored = true;
-            AwardPoint(Opponent(lastHitter), true);
+            AwardPoint(Opponent(lastHitter), true, "Bounced on own court");
             return;
         }
 
-        // 🛑 같은 테이블에 두 번 바운스 → 실점
+        // 🛑 같은 테이블에 두 번 바운스 → 실점 (자신의 코트에서만 적용)
         if (!isServe && previousBounceTable == tableTag)
         {
-            isPointScored = true;
-            AwardPoint(Opponent(lastHitter), true);
-            return;
+            bool sameSide =
+                (lastHitter == "AI" && tableTag == "AITable") ||
+                (lastHitter == "Player" && tableTag == "PlayerTable");
+
+            if (sameSide)
+            {
+                isPointScored = true;
+                AwardPoint(Opponent(lastHitter), true, "Double bounce on own court");
+                return;
+            }
         }
 
         previousBounceTable = tableTag;
@@ -87,25 +94,29 @@ public class GameManager : MonoBehaviour
         if ((lastHitter == "Player" && lastBounceTable == "PlayerTable") ||
             (lastHitter == "AI" && lastBounceTable == "AITable"))
         {
-            AwardPoint(Opponent(lastHitter), true);
+            AwardPoint(Opponent(lastHitter), true, "Out of bounds from own side");
         }
         else
         {
-            AwardPoint(lastHitter, false);
+            AwardPoint(lastHitter, false, "Opponent failed to return");
         }
     }
 
-    private void AwardPoint(string winner, bool fault)
+    private void AwardPoint(string winner, bool fault, string reason)
     {
         if (winner == "Player")
         {
             playerScore++;
-            Debug.Log(fault ? "✅ Player scores (AI fault)" : "✅ Player scores");
+            Debug.Log(fault
+                ? $"✅ Player scores (AI fault: {reason})"
+                : $"✅ Player scores (Player win: {reason})");
         }
         else
         {
             aiScore++;
-            Debug.Log(fault ? "✅ AI scores (Player fault)" : "✅ AI scores");
+            Debug.Log(fault
+                ? $"✅ AI scores (Player fault: {reason})"
+                : $"✅ AI scores (AI win: {reason})");
         }
 
         Debug.Log($"🏓 Score: Player {playerScore} / AI {aiScore}");

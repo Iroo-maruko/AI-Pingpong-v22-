@@ -907,7 +907,7 @@ MonoBehaviour:
   moveSpeed: 40
   predictionOffset: 1.5
   minY: 0.5
-  maxY: 7
+  maxY: 10
   predictionErrorChance: 1
   significantErrorThresholdZ: 4
   reactionSlowChance: 0.1
@@ -1515,7 +1515,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2653181533822351498, guid: 0359ed46faed84f4ab2e4be3e7bc88c5, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: -0.7
       objectReference: {fileID: 0}
     - target: {fileID: 2653181533822351498, guid: 0359ed46faed84f4ab2e4be3e7bc88c5, type: 3}
       propertyPath: m_LocalPosition.z
@@ -2016,7 +2016,7 @@ MonoBehaviour:
   outOfBoundsY: -3
   outOfBoundsX: 65
   outOfBoundsZ: 50
-  maxAllowedHeight: 70
+  maxAllowedHeight: 150
 --- !u!1 &1964191803
 GameObject:
   m_ObjectHideFlags: 0

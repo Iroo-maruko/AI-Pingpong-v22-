@@ -12,7 +12,7 @@ public class BallController : MonoBehaviour
     private bool isServe = true;
     private bool aiHasHit = false;
     private bool pointProcessed = false;
-    private bool hasLaunched = false; // ✅ 중복 방지 플래그
+    private bool hasLaunched = false;
 
     [Header("References")]
     public AIAgent aiAgent;
@@ -29,7 +29,7 @@ public class BallController : MonoBehaviour
     public float outOfBoundsY = -3f;
     public float outOfBoundsX = 65f;
     public float outOfBoundsZ = 50f;
-    public float maxAllowedHeight = 50f;
+    public float maxAllowedHeight = 150f;
 
     private float slowTimer = 0f;
 
@@ -43,12 +43,6 @@ public class BallController : MonoBehaviour
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         rb.Sleep();
-    }
-
-    private void Start()
-    {
-        // 제거: Start에서의 LaunchBall() → 중복 가능성 있음
-        // StartCoroutine(DelayedLaunch());
     }
 
     private void Update()
@@ -85,13 +79,13 @@ public class BallController : MonoBehaviour
     private IEnumerator HandlePointOut(string lastBounce)
     {
         GameManager.Instance.OnBallOutOfBounds(lastBounce);
-        yield return new WaitForSeconds(0.5f); // ✅ 점수 표시 대기
+        yield return new WaitForSeconds(0.5f);
         ResetBall(GameManager.Instance.centerPoint.position);
     }
 
     public void LaunchBall()
     {
-        if (hasLaunched) return; // ✅ 중복 방지
+        if (hasLaunched) return;
         hasLaunched = true;
 
         isServe = true;
@@ -127,11 +121,17 @@ public class BallController : MonoBehaviour
         rb.WakeUp();
 
         yield return new WaitForSeconds(0.15f);
-        hasLaunched = false; // ✅ 다음 발사 허용
+        hasLaunched = false;
         LaunchBall();
 
         slowTimer = 0f;
         isResetting = false;
+    }
+
+    private void RegisterTableBounce(string tableTag)
+    {
+        lastBounceTable = tableTag;
+        GameManager.Instance.OnBallBounce(tableTag, isServe);
     }
 
     private void OnCollisionEnter(Collision collision)
@@ -148,9 +148,8 @@ public class BallController : MonoBehaviour
         }
         else if (tag == "PlayerTable" || tag == "AITable")
         {
-            lastBounceTable = tag;
-            GameManager.Instance.OnBallBounce(tag, isServe);
             isServe = false;
+            RegisterTableBounce(tag);
         }
         else if (tag == "Ground")
         {
@@ -162,10 +161,10 @@ public class BallController : MonoBehaviour
     public void RegisterHit(string hitter)
     {
         lastHitter = hitter;
-        GameManager.Instance?.ResetBounceCount();
         isServe = false;
 
         if (hitter == "AI") aiHasHit = true;
+        GameManager.Instance?.ResetBounceCount();
     }
 
     public void ForceEndServe() => isServe = false;
@@ -178,4 +177,6 @@ public class BallController : MonoBehaviour
     public bool IsServe() => isServe;
     public bool AIHasHit() => aiHasHit;
     public void SetAIHasHit(bool value) => aiHasHit = value;
+
+    public void SetLastBounceTable(string tag) => lastBounceTable = tag;
 }
