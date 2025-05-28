@@ -22,8 +22,8 @@ public class PlayerPaddleHit : MonoBehaviour
     public float misHitAngle = 2f;
 
     [Header("Force Clamping")]
-    public float minUpwardY = 2.5f;         // 최소 y 상승값
-    public float minTotalForce = 10f;       // 전체 최소 힘 크기
+    public float minUpwardY = 2.5f;
+    public float minTotalForce = 10f;
 
     private Collider paddleCollider;
     private Collider ballCollider;
@@ -50,13 +50,7 @@ public class PlayerPaddleHit : MonoBehaviour
             if (paddleCollider && ballCollider)
                 Physics.IgnoreCollision(paddleCollider, ballCollider, true);
 
-            BallController ballController = ball.GetComponent<BallController>();
-            if (ballController != null)
-            {
-                ballController.RegisterHit("Player");
-                if (ballController.IsServe())
-                    ballController.ForceEndServe();
-            }
+            BallController.OnPaddleHit?.Invoke("Player");
 
             bool isRally = ballRb.velocity.z < 0f;
 
@@ -94,6 +88,8 @@ public class PlayerPaddleHit : MonoBehaviour
 
             ballRb.AddForce(finalForce, ForceMode.Impulse);
             ballRb.AddTorque(Vector3.right * Random.Range(-spinTorque, spinTorque), ForceMode.Impulse);
+
+            Debug.Log($"🎯 [Player Hit] Applied force: {finalForce} (magnitude: {finalForce.magnitude:F2})");
 
             Invoke(nameof(ResetCollision), collisionDisableTime);
         }

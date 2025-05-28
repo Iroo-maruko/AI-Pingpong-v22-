@@ -20,9 +20,10 @@ public class AIAgent : Agent
     public Vector3 maxPosition = new Vector3(-50f, 16f, 50f);
 
     private float episodeTimer = 0f;
-    public float maxEpisodeTime = 10f;
+    public float maxEpisodeTime = 999999f;
 
-    public float[] currentHitAction = new float[4]; // [0]: Hit flag, [1]: Power, [2]: dirX, [3]: dirZ
+    // [0]=HitFlag, [1]=Power, [2]=DirX, [3]=DirZ
+    public float[] currentHitAction = new float[4];
 
     void Start()
     {
@@ -51,13 +52,14 @@ public class AIAgent : Agent
             ball.position = new Vector3(0f, 1.2f, 0f);
             ballRb.velocity = Vector3.zero;
             ballRb.angularVelocity = Vector3.zero;
+            ballRb.WakeUp();
         }
 
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
         BallController bc = ball?.GetComponent<BallController>();
-        bc?.LaunchBall();
+        bc?.LaunchBall(GameManager.Instance.serveBy); // ✅ 올바른 호출
     }
 
     public override void CollectObservations(VectorSensor sensor)
@@ -75,14 +77,7 @@ public class AIAgent : Agent
     {
         var act = actions.ContinuousActions;
 
-        Vector3 move = new Vector3(act[0], act[1], act[2]) * moveSpeed * Time.deltaTime;
-        Vector3 newPosition = transform.localPosition + move;
-        newPosition = new Vector3(
-            Mathf.Clamp(newPosition.x, minPosition.x, maxPosition.x),
-            Mathf.Clamp(newPosition.y, minPosition.y, maxPosition.y),
-            Mathf.Clamp(newPosition.z, minPosition.z, maxPosition.z)
-        );
-        transform.localPosition = newPosition;
+        MoveAgent(act);
 
         float distanceToBall = Vector3.Distance(transform.position, ball.position);
         AddReward(-0.001f * distanceToBall);
@@ -91,6 +86,18 @@ public class AIAgent : Agent
         currentHitAction[1] = Mathf.Clamp01(act[4]);
         currentHitAction[2] = act[5];
         currentHitAction[3] = act[6];
+    }
+
+    private void MoveAgent(ActionSegment<float> act)
+    {
+        Vector3 move = new Vector3(act[0], act[1], act[2]) * moveSpeed * Time.deltaTime;
+        Vector3 newPosition = transform.localPosition + move;
+        newPosition = new Vector3(
+            Mathf.Clamp(newPosition.x, minPosition.x, maxPosition.x),
+            Mathf.Clamp(newPosition.y, minPosition.y, maxPosition.y),
+            Mathf.Clamp(newPosition.z, minPosition.z, maxPosition.z)
+        );
+        transform.localPosition = newPosition;
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
@@ -105,5 +112,4 @@ public class AIAgent : Agent
         a[5] = 1f;
         a[6] = -1f;
     }
-
 }

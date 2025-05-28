@@ -1,32 +1,24 @@
 using UnityEngine;
-using System.Collections.Generic;
-using System.IO;
+using System.Collections;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
-
-    [Header("Game Objects")]
     public BallController ball;
-    public Transform centerPoint;
-    public LearningLogger logger;
-    public Transform aiPaddle;
-    public Transform playerPaddle;
+    public AIAgent aiAgent;
 
     [Header("Score Settings")]
     public int playerScore = 0;
     public int aiScore = 0;
     public int pointsToWin = 11;
 
-    private int bounceCount = 0;
-    private bool isPointScored = false;
-    private int totalGames = 0;
+    public string serveBy { get; private set; } = "None";
 
-    private List<float> aiWinRates = new List<float>();
-    private List<int> aiScores = new List<int>();
-    private List<int> playerScores = new List<int>();
-
-    private string previousBounceTable = "None";
+    private string currentHitter = "None";
+    private string lastTableBounce = "None";
+    private bool isServe = true;
+    private int serveBounceCount = 0;
+    private bool pointAwardedThisRally = false;
 
     private void Awake()
     {
@@ -34,157 +26,128 @@ public class GameManager : MonoBehaviour
         else Destroy(gameObject);
     }
 
-    public void OnBallHit()
+    private void OnEnable()
     {
-        bounceCount = 0;
+        BallController.OnPaddleHit += HandlePaddleHit;
+        BallController.OnTableBounce += HandleTableBounce;
+        BallController.OnOutOfBounds += HandleOutOfBounds;
     }
 
-    public void OnBallBounce(string tableTag, bool isServe)
+    private void OnDisable()
     {
-        if (isPointScored || ball.IsResetting()) return;
+        BallController.OnPaddleHit -= HandlePaddleHit;
+        BallController.OnTableBounce -= HandleTableBounce;
+        BallController.OnOutOfBounds -= HandleOutOfBounds;
+    }
 
-        string lastHitter = ball.GetLastHitter();
+    private void HandlePaddleHit(string hitter)
+    {
+        if (pointAwardedThisRally) return;
 
-        // ✅ AI가 공을 넘겨서 PlayerTable에 바운스한 경우 보상
-        if (lastHitter == "AI" && tableTag == "PlayerTable")
+        currentHitter = hitter;
+        Debug.Log($"🎯 [HIT] currentHitter = {currentHitter}");
+
+        if (isServe)
+            isServe = false;
+
+        serveBounceCount = 0;
+    }
+
+    private void HandleTableBounce(string table)
+    {
+        if (pointAwardedThisRally) return;
+
+        if (isServe)
         {
-            aiPaddle.GetComponent<AIAgent>()?.AddReward(+0.3f); // 네트 넘기기 보상
-        }
+            serveBounceCount++;
 
-        // 🛑 자기 코트에 바운스 → 실점
-        if (!isServe &&
-            ((lastHitter == "Player" && tableTag == "PlayerTable") ||
-             (lastHitter == "AI" && tableTag == "AITable")))
-        {
-            isPointScored = true;
-            AwardPoint(Opponent(lastHitter), true, "Bounced on own court");
+            if (serveBounceCount == 1)
+            {
+                if (!table.Contains(serveBy))
+                {
+                    AwardPoint(Opponent(serveBy), "잘못된 서브 바운스");
+                    return;
+                }
+            }
+            else if (serveBounceCount == 2)
+            {
+                isServe = false;
+            }
+
             return;
         }
 
-        // 🛑 같은 테이블에 두 번 바운스 → 실점 (자신의 코트에서만 적용)
-        if (!isServe && previousBounceTable == tableTag)
+        if (table.Contains(currentHitter))
         {
-            bool sameSide =
-                (lastHitter == "AI" && tableTag == "AITable") ||
-                (lastHitter == "Player" && tableTag == "PlayerTable");
-
-            if (sameSide)
-            {
-                isPointScored = true;
-                AwardPoint(Opponent(lastHitter), true, "Double bounce on own court");
-                return;
-            }
+            AwardPoint(Opponent(currentHitter), "자기쪽 테이블에 바운스");
+            return;
         }
 
-        previousBounceTable = tableTag;
-        bounceCount++;
+        if (currentHitter == "AI" && table == "PlayerTable")
+        {
+            aiAgent?.AddReward(0.3f);
+            Debug.Log("🏅 AI rewarded for successful return to Player side");
+        }
+
+        lastTableBounce = table;
     }
 
-    public void OnBallOutOfBounds(string lastBounceTable)
+    private void HandleOutOfBounds(string tableBeforeExit)
     {
-        if (isPointScored) return;
-        isPointScored = true;
+        if (pointAwardedThisRally) return;
 
-        string lastHitter = ball.GetLastHitter();
-        if (lastHitter == "None")
-        {
-            lastHitter = ball.GetServeBy();
-        }
+        if (tableBeforeExit.Contains(currentHitter))
+            AwardPoint(Opponent(currentHitter), "공을 쳐서 바로 아웃");
+        else
+            AwardPoint(currentHitter, "상대가 리턴 못함");
+    }
 
-        if ((lastHitter == "Player" && lastBounceTable == "PlayerTable") ||
-            (lastHitter == "AI" && lastBounceTable == "AITable"))
+    private void AwardPoint(string winner, string reason)
+    {
+        pointAwardedThisRally = true;
+
+        if (winner == "Player") playerScore++;
+        else if (winner == "AI") aiScore++;
+
+        Debug.Log($"✅ {winner} 점수 획득: {reason} | 점수: Player {playerScore} - AI {aiScore}");
+
+        if (winner == "AI")
         {
-            AwardPoint(Opponent(lastHitter), true, "Out of bounds from own side");
+            aiAgent?.AddReward(+1f);
+            aiAgent?.EndEpisode();
         }
         else
         {
-            AwardPoint(lastHitter, false, "Opponent failed to return");
-        }
-    }
-
-    private void AwardPoint(string winner, bool fault, string reason)
-    {
-        if (winner == "Player")
-        {
-            playerScore++;
-            Debug.Log(fault
-                ? $"✅ Player scores (AI fault: {reason})"
-                : $"✅ Player scores (Player win: {reason})");
-        }
-        else
-        {
-            aiScore++;
-            Debug.Log(fault
-                ? $"✅ AI scores (Player fault: {reason})"
-                : $"✅ AI scores (AI win: {reason})");
+            aiAgent?.AddReward(-0.2f);
         }
 
-        Debug.Log($"🏓 Score: Player {playerScore} / AI {aiScore}");
-        CheckGameEnd();
-        Invoke(nameof(ResetAfterPoint), 0.1f);
-    }
-
-    private string Opponent(string player) => player == "Player" ? "AI" : "Player";
-
-    private void CheckGameEnd()
-    {
         if (playerScore >= pointsToWin || aiScore >= pointsToWin)
         {
-            totalGames++;
-
-            float winRate = (float)aiScore / (playerScore + aiScore);
-            aiWinRates.Add(winRate);
-            aiScores.Add(aiScore);
-            playerScores.Add(playerScore);
-
-            Debug.Log($"📊 [Set End] Game {totalGames}, AI Score: {aiScore}, Player Score: {playerScore}, Win Rate: {winRate:F2}");
-
-            SaveWinRateData();
-
+            Debug.Log("🏁 게임 종료: " + (playerScore >= pointsToWin ? "Player 승리" : "AI 승리"));
             playerScore = 0;
             aiScore = 0;
         }
+
+        StartCoroutine(HandlePostPointRoutine(winner));
     }
 
-    private void SaveWinRateData()
+    private IEnumerator HandlePostPointRoutine(string nextServer)
     {
-        string path = Path.Combine(Application.persistentDataPath, "AIWinRate.csv");
-        bool fileExists = File.Exists(path);
-
-        using (StreamWriter writer = new StreamWriter(path, append: true))
-        {
-            if (!fileExists)
-                writer.WriteLine("Game,AI_Score,Player_Score,AI_WinRate");
-
-            int index = aiWinRates.Count - 1;
-            int ai = aiScores[index];
-            int player = playerScores[index];
-            float rate = aiWinRates[index];
-
-            writer.WriteLine($"{totalGames},{ai},{player},{rate:F3}");
-        }
-
-        Debug.Log($"📁 WinRate appended at: {path}");
+        yield return new WaitForSeconds(1f);
+        PrepareNextServe(nextServer);
+        yield return StartCoroutine(ball.ResetPosition());
+        ball.LaunchBall(nextServer);
     }
 
-    private void ResetAfterPoint()
+    private void PrepareNextServe(string nextServer)
     {
-        string hitter = ball.GetLastHitter();
-        string result = hitter == "Player" ? "PlayerScored" : "AIScored";
-
-        logger?.LogPoint(totalGames, hitter, ball.GetPosition(), ball.GetVelocity().magnitude,
-            aiPaddle.position.z, playerPaddle.position.z, result);
-
-        bounceCount = 0;
-        previousBounceTable = "None";
-        isPointScored = false;
-
-        ball.ResetBall(centerPoint.position);
+        currentHitter = nextServer;
+        serveBy = nextServer;
+        lastTableBounce = "None";
+        isServe = true;
+        serveBounceCount = 0;
+        pointAwardedThisRally = false;
     }
 
-    public void ResetBounceCount()
-    {
-        bounceCount = 0;
-        previousBounceTable = "None";
-    }
+    private string Opponent(string player) => player == "Player" ? "AI" : "Player";
 }

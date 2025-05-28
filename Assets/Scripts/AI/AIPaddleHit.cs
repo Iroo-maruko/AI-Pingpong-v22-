@@ -34,8 +34,6 @@ public class AIPaddleHit : MonoBehaviour
             return;
         }
 
-        if (ballController.AIHasHit()) return;
-
         float distance = Vector3.Distance(transform.position, ball.position);
         if (distance > hitDistance) return;
 
@@ -45,7 +43,7 @@ public class AIPaddleHit : MonoBehaviour
 
         lastHitTime = Time.time;
 
-        Vector3 direction = new Vector3(agent.currentHitAction[2], 0.6f, agent.currentHitAction[3]*0.3f);
+        Vector3 direction = new Vector3(agent.currentHitAction[2], 0.6f, agent.currentHitAction[3] * 0.3f);
         if (direction.sqrMagnitude < 0.01f)
         {
             direction = transform.forward;
@@ -56,21 +54,20 @@ public class AIPaddleHit : MonoBehaviour
         float forceScale = Mathf.Clamp01((hitDistance - distance) / hitDistance);
         float dynamicHitForce = baseHitForce * (minForceScale + forceScale * (1f - minForceScale));
         float hitPower = Mathf.Clamp01(agent.currentHitAction[1]);
-        hitPower = Mathf.Lerp(0.5f, 1.2f, hitPower); // Power range: 0.5 ~ 1.5
+        hitPower = Mathf.Lerp(0.5f, 1.5f, hitPower); // Power range: 0.5 ~ 1.5
 
         Vector3 finalForce = direction * hitPower * dynamicHitForce;
         finalForce.y += baseUpwardForce;
 
         if (finalForce.magnitude < 5f)
         {
-            Debug.Log($"⚠️ Force too weak ({finalForce.magnitude:F2}), boosting to minimum");
+            Debug.Log($"⚠️ Force too weak ({finalForce.magnitude:F2}), boosting to minimum ");
             finalForce = finalForce.normalized * 5f;
         }
 
         Debug.Log($"✅ [AI Hit] Force = {finalForce}, Power = {hitPower:F2}, Distance = {distance:F2}");
 
-        ballController.RegisterHit("AI");
-        if (ballController.IsServe()) ballController.ForceEndServe();
+        BallController.OnPaddleHit?.Invoke("AI");
 
         if (ball.position.y < 0.2f)
             ball.position += Vector3.up * 0.1f;
@@ -81,16 +78,15 @@ public class AIPaddleHit : MonoBehaviour
         ballRb.AddForce(finalForce, ForceMode.Impulse);
         ballRb.AddTorque(Vector3.right * Random.Range(-spinTorque, spinTorque), ForceMode.Impulse);
 
-        // ✅ 보상 부여
-        agent.AddReward(+0.1f); // 공을 친 것에 대한 기본 보상
+        agent.AddReward(+0.1f); // 기본 보상
 
         if (direction.x > 0)
         {
-            agent.AddReward(+0.2f); // 올바른 방향으로 침 (+x)
+            agent.AddReward(+0.2f); // 올바른 방향으로 침
         }
         else
         {
-            agent.AddReward(-0.2f); // 반대 방향으로 침 (-x)
+            agent.AddReward(-0.2f); // 잘못된 방향으로 침
         }
     }
 }
