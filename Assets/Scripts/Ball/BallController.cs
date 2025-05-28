@@ -5,93 +5,193 @@ using System.Collections;
 public class BallController : MonoBehaviour
 {
     private Rigidbody rb;
+    private string lastHitter = "None";
+    private string serveBy = "None";
+    private string lastBounceTable = "None";
+    private bool isResetting = false;
+    private bool isServe = true;
+    private bool aiHasHit = false;
+    private bool pointProcessed = false;
+    private bool hasLaunched = false;
+    private bool ignoringAITable = false;
+
+    [Header("References")]
+    public AIAgent aiAgent;
+
+    [Header("Launch Settings")]
     public Transform resetPoint;
     public float initialForce = 19f;
     public float launchAngleRange = 30f;
     public float upwardLaunchOffset = 0.3f;
 
-    private bool isResetting = false;
+    [Header("Reset Conditions")]
+    public float stopThreshold = 5f;
+    public float stopCheckDuration = 0.7f;
+    public float outOfBoundsY = -3f;
+    public float outOfBoundsX = 65f;
+    public float outOfBoundsZ = 50f;
+    public float maxAllowedHeight = 50f;
 
-    public string lastHitter = "None";
-    public string lastBounceTable = "None";
+    [Header("Collision Management")]
+    public Collider aiTableCollider;
+    public Collider ballCollider;
 
-    public static System.Action<string> OnPaddleHit;
-    public static System.Action<string> OnTableBounce;
-    public static System.Action<string> OnOutOfBounds;
-    public static System.Action<string> OnServeStarted;
+    private float slowTimer = 0f;
 
-    private void Start()
+    private void Awake()
     {
         rb = GetComponent<Rigidbody>();
-        transform.position = resetPoint.position;
+
+        if (resetPoint != null)
+            transform.position = resetPoint.position;
+
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         rb.Sleep();
+
+        if (ballCollider == null)
+            ballCollider = GetComponent<Collider>();
     }
 
     private void Update()
     {
-        if (isResetting) return;
+        if (isResetting || pointProcessed) return;
+
+        float speed = rb.velocity.magnitude;
+        if (speed < stopThreshold && !isServe)
+        {
+            slowTimer += Time.deltaTime;
+            if (slowTimer >= stopCheckDuration && !pointProcessed)
+            {
+                pointProcessed = true;
+                StartCoroutine(HandlePointOut(lastBounceTable));
+            }
+        }
+        else
+        {
+            slowTimer = 0f;
+        }
 
         Vector3 pos = transform.position;
-        if (pos.y < -3f || Mathf.Abs(pos.x) > 65f || Mathf.Abs(pos.z) > 50f || pos.y > 150f)
+        if (!pointProcessed && (
+            pos.y < outOfBoundsY ||
+            pos.y > maxAllowedHeight ||
+            Mathf.Abs(pos.x) > outOfBoundsX ||
+            Mathf.Abs(pos.z) > outOfBoundsZ))
         {
-            OnOutOfBounds?.Invoke(lastBounceTable);
-            StartCoroutine(ResetPosition());
+            pointProcessed = true;
+            StartCoroutine(HandlePointOut(lastBounceTable));
         }
     }
 
-    public void LaunchBall(string by)
+    private IEnumerator HandlePointOut(string lastBounce)
     {
-        rb.WakeUp();
-
-        bool toLeft = by == "Player";
-        lastHitter = Opponent(by);
-
-        float angle = Random.Range(-launchAngleRange, launchAngleRange);
-        Vector3 dir = Quaternion.Euler(0, angle, 0) * (toLeft ? Vector3.right : Vector3.left);
-        dir = (dir + Vector3.up * upwardLaunchOffset).normalized;
-
-        rb.velocity = dir * initialForce;
-
-        OnServeStarted?.Invoke(by);
-        Debug.Log($"🚀 Ball launched by {by} to {(toLeft ? "right" : "left")} with velocity {rb.velocity}");
+        GameManager.Instance.OnBallOutOfBounds(lastBounce);
+        yield return new WaitForSeconds(0.5f);
+        ResetBall(GameManager.Instance.centerPoint.position);
     }
 
-    public IEnumerator ResetPosition()
+    public void LaunchBall()
+    {
+        if (hasLaunched) return;
+        hasLaunched = true;
+
+        isServe = true;
+        aiHasHit = false;
+        pointProcessed = false;
+        lastHitter = "None";
+        lastBounceTable = "None";
+
+        bool toLeft = Random.value < 0.5f;
+        serveBy = toLeft ? "Player" : "AI";
+
+        float angle = Random.Range(-launchAngleRange, launchAngleRange);
+        Vector3 horizontalDir = Quaternion.Euler(0, angle, 0) * (toLeft ? Vector3.right : Vector3.left);
+        Vector3 finalDir = (horizontalDir + Vector3.up * upwardLaunchOffset).normalized;
+
+        Vector3 launchVelocity = finalDir * initialForce;
+        rb.velocity = launchVelocity;
+    }
+
+    public void ResetBall(Vector3 position)
+    {
+        StartCoroutine(ResetRoutine(position));
+    }
+    public void SetIgnoringAITable(bool value)
+    {
+        ignoringAITable = value;
+    }
+
+    private IEnumerator ResetRoutine(Vector3 position)
     {
         isResetting = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         rb.Sleep();
 
-        transform.position = resetPoint.position;
-
-        yield return new WaitForSeconds(0.8f);
-
+        yield return new WaitForFixedUpdate();
+        transform.position = position;
         rb.WakeUp();
+
+        yield return new WaitForSeconds(0.15f);
+        hasLaunched = false;
+        LaunchBall();
+
+        slowTimer = 0f;
         isResetting = false;
     }
 
-    private void OnCollisionEnter(Collision col)
+    private void OnCollisionEnter(Collision collision)
     {
-        if (isResetting) return;
+        if (isResetting || pointProcessed) return;
 
-        if (col.collider.CompareTag("Paddle"))
+        string tag = collision.gameObject.tag;
+
+        if (tag == "Paddle")
         {
-            string hitter = col.collider.name.Contains("Player") ? "Player" : "AI";
-            lastHitter = hitter;
-            OnPaddleHit?.Invoke(hitter);
-            Debug.Log($"🎯 공이 {hitter}의 패들에 맞음");
+            string hitter = collision.gameObject.name.Contains("Player") ? "Player" : "AI";
+            RegisterHit(hitter);
+            GameManager.Instance.OnBallHit();
         }
-        else if (col.collider.CompareTag("PlayerTable") || col.collider.CompareTag("AITable"))
+        else if (tag == "PlayerTable" || tag == "AITable")
         {
-            string tableTag = col.collider.tag;
-            lastBounceTable = tableTag;
-            OnTableBounce?.Invoke(tableTag);
-            Debug.Log($"🟩 공이 {tableTag}에 바운스됨");
+            lastBounceTable = tag;
+            Debug.Log($"✅ Ball collided with table: {tag}"); // ✅ 충돌 테이블 로그 추가
+            GameManager.Instance.OnBallBounce(tag, isServe);
+            isServe = false;
+
+            if (tag == "PlayerTable" && ignoringAITable)
+            {
+                if (aiTableCollider != null && ballCollider != null)
+                    Physics.IgnoreCollision(ballCollider, aiTableCollider, false);
+
+                ignoringAITable = false;
+            }
+        }
+        else if (tag == "Ground")
+        {
+            pointProcessed = true;
+            StartCoroutine(HandlePointOut(lastBounceTable));
         }
     }
 
-    private string Opponent(string p) => p == "Player" ? "AI" : "Player";
+    public void RegisterHit(string hitter)
+    {
+        lastHitter = hitter;
+        GameManager.Instance?.ResetBounceCount();
+        isServe = false;
+
+        if (hitter == "AI") aiHasHit = true;
+    }
+
+    public void ForceEndServe() => isServe = false;
+    public string GetLastHitter() => lastHitter;
+    public string GetLastBounceTable() => lastBounceTable;
+    public string GetServeBy() => serveBy;
+    public Vector3 GetPosition() => transform.position;
+    public Vector3 GetVelocity() => rb.velocity;
+    public bool IsResetting() => isResetting;
+    public bool IsServe() => isServe;
+    public bool AIHasHit() => aiHasHit;
+    public void SetAIHasHit(bool value) => aiHasHit = value;
 }

@@ -2,9 +2,9 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.IO;
 
-public class GameManager : MonoBehaviour
+public class GameManager2 : MonoBehaviour
 {
-    public static GameManager Instance;
+    public static GameManager2 Instance;
 
     [Header("Game Objects")]
     public BallController ball;
@@ -31,7 +31,7 @@ public class GameManager : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else Destroy(gameObject); // 또는 주석처리하여 강제 파괴 막기
     }
 
     public void OnBallHit()
@@ -47,7 +47,7 @@ public class GameManager : MonoBehaviour
 
         if (lastHitter == "AI" && tableTag == "PlayerTable")
         {
-            aiPaddle.GetComponent<AIAgent>()?.AddReward(+0.3f); // 네트 넘기기 보상
+            aiPaddle.GetComponent<AIAgent>()?.AddReward(+0.3f);
         }
 
         if (!isServe &&
@@ -97,15 +97,15 @@ public class GameManager : MonoBehaviour
         if (winner == "Player")
         {
             playerScore++;
-            Debug.Log($"✅ Player scores ({FaultText(fault)}): {reason}");
+            Debug.Log($"✅ [GM2] Player scores ({FaultText(fault)}): {reason}");
         }
         else
         {
             aiScore++;
-            Debug.Log($"✅ AI scores ({FaultText(fault)}): {reason}");
+            Debug.Log($"✅ [GM2] AI scores ({FaultText(fault)}): {reason}");
         }
 
-        Debug.Log($"🏓 Score: Player {playerScore} / AI {aiScore}");
+        Debug.Log($"🏓 [GM2] Score: Player {playerScore} / AI {aiScore}");
         CheckGameEnd();
         Invoke(nameof(ResetAfterPoint), 0.1f);
     }
@@ -125,7 +125,7 @@ public class GameManager : MonoBehaviour
             aiScores.Add(aiScore);
             playerScores.Add(playerScore);
 
-            Debug.Log($"📊 [Set End] Game {totalGames}, AI Score: {aiScore}, Player Score: {playerScore}, Win Rate: {winRate:F2}");
+            Debug.Log($"📊 [GM2 Set End] Game {totalGames}, AI Score: {aiScore}, Player Score: {playerScore}, Win Rate: {winRate:F2}");
 
             SaveWinRateData();
 
@@ -136,7 +136,7 @@ public class GameManager : MonoBehaviour
 
     private void SaveWinRateData()
     {
-        string path = Path.Combine(Application.persistentDataPath, "AIWinRate.csv");
+        string path = Path.Combine(Application.persistentDataPath, "AIWinRate_GM2.csv");
         bool fileExists = File.Exists(path);
 
         using (StreamWriter writer = new StreamWriter(path, append: true))
@@ -152,7 +152,7 @@ public class GameManager : MonoBehaviour
             writer.WriteLine($"{totalGames},{ai},{player},{rate:F3}");
         }
 
-        Debug.Log($"📁 WinRate appended at: {path}");
+        Debug.Log($"📁 [GM2] WinRate appended at: {path}");
     }
 
     private void ResetAfterPoint()
